@@ -241,28 +241,54 @@ export default function AdminDashboard() {
       }
 
       /* ======================================
-         LOAD VENDORS
-      ====================================== */
+   LOAD VENDORS
+====================================== */
 
-      const {
-        data: vendorsData,
-        error: vendorsError,
-      } = await supabase
-        .from("profiles")
-        .select(
-          "id, name, phone, shop_name, shop_address, role, membership_status, created_at"
-        )
-        .eq("role", "vendor")
-        .order("created_at", {
-          ascending: false,
-        });
+let vendorsData: Vendor[] = [];
 
-      if (vendorsError) {
-        console.error(
-          "VENDOR LOAD ERROR:",
-          vendorsError
-        );
-      }
+const {
+  data: { session },
+} =
+  await supabase.auth.getSession();
+
+if (session?.access_token) {
+  try {
+    const vendorResponse =
+      await fetch(
+        "/api/admin/vendors",
+        {
+          method: "GET",
+
+          headers: {
+            Authorization:
+              `Bearer ${session.access_token}`,
+          },
+
+          cache: "no-store",
+        }
+      );
+
+    const vendorResult =
+      await vendorResponse.json();
+
+    if (!vendorResponse.ok) {
+      console.error(
+        "VENDOR LOAD ERROR:",
+        vendorResult
+      );
+    } else {
+      vendorsData =
+        vendorResult.vendors ||
+        [];
+    }
+
+  } catch (error) {
+    console.error(
+      "VENDOR LOAD ERROR:",
+      error
+    );
+  }
+}
 
       setProducts(productsData || []);
       setOrders(ordersData || []);
@@ -382,111 +408,155 @@ export default function AdminDashboard() {
     router.refresh();
   }
 
-  // ==========================================
-  // UPDATE VENDOR STATUS
-  // ==========================================
-
   async function updateVendorStatus(
-    vendorId: string,
-    newStatus: "active" | "inactive"
-  ) {
-    const vendor = vendors.find(
-      (item) => item.id === vendorId
+  vendorId: string,
+  newStatus:
+    | "active"
+    | "inactive"
+) {
+  const vendor =
+    vendors.find(
+      (item) =>
+        item.id ===
+        vendorId
     );
 
-    if (!vendor) {
-      alert("Vendor পাওয়া যায়নি।");
-      return;
-    }
+  if (!vendor) {
+    alert(
+      "Vendor পাওয়া যায়নি।"
+    );
 
-    const vendorName =
-      vendor.name ||
-      vendor.shop_name ||
-      "এই Vendor";
+    return;
+  }
 
-    const actionText =
-      newStatus === "active"
-        ? "Activate"
-        : "Deactivate";
+  const vendorName =
+    vendor.name ||
+    vendor.shop_name ||
+    "এই Vendor";
 
-    const confirmed = window.confirm(
+  const actionText =
+    newStatus ===
+    "active"
+      ? "Activate"
+      : "Deactivate";
+
+  const confirmed =
+    window.confirm(
       `আপনি কি "${vendorName}" Vendor-কে ${actionText} করতে চান?`
     );
 
-    if (!confirmed) {
+  if (!confirmed) {
+    return;
+  }
+
+  try {
+    setUpdatingVendor(
+      vendorId
+    );
+
+    const {
+      data: { session },
+    } =
+      await supabase.auth.getSession();
+
+    if (
+      !session?.access_token
+    ) {
+      alert(
+        "❌ Admin session পাওয়া যায়নি। আবার Login করুন।"
+      );
+
       return;
     }
 
-    try {
-      setUpdatingVendor(vendorId);
+    const response =
+      await fetch(
+        "/api/admin/vendors",
+        {
+          method: "PATCH",
 
-      const {
-        data: updatedVendor,
-        error,
-      } = await supabase
-        .from("profiles")
-        .update({
-          membership_status: newStatus,
-        })
-        .eq("id", vendorId)
-        .eq("role", "vendor")
-        .select(
-          "id, name, phone, shop_name, shop_address, role, membership_status, created_at"
-        )
-        .maybeSingle();
+          headers: {
+            "Content-Type":
+              "application/json",
 
-      if (error) {
-        console.error(
-          "VENDOR STATUS UPDATE ERROR:",
-          error
-        );
+            Authorization:
+              `Bearer ${session.access_token}`,
+          },
 
-        alert(
-          "❌ Vendor Status Update করা যায়নি.\n\n" +
-            error.message
-        );
+          body:
+            JSON.stringify({
+              vendorId,
 
-        return;
-      }
-
-      if (!updatedVendor) {
-        alert(
-          "❌ Vendor Status Update হয়নি.\n\n" +
-            "সম্ভবত Supabase RLS Policy-তে UPDATE permission দেওয়া নেই।"
-        );
-
-        return;
-      }
-
-      setVendors((currentVendors) =>
-        currentVendors.map((item) =>
-          item.id === vendorId
-            ? updatedVendor
-            : item
-        )
+              membershipStatus:
+                newStatus,
+            }),
+        }
       );
 
-      alert(
-        newStatus === "active"
-          ? `✅ "${vendorName}" Vendor Successfully Activated!`
-          : `⛔ "${vendorName}" Vendor Successfully Deactivated!`
-      );
-    } catch (error) {
+    const result =
+      await response.json();
+
+    if (!response.ok) {
       console.error(
-        "VENDOR STATUS UPDATE EXCEPTION:",
-        error
+        "VENDOR STATUS UPDATE ERROR:",
+        result
       );
 
       alert(
-        "❌ Vendor Status Update করার সময় একটি সমস্যা হয়েছে.\n\n" +
-          (error instanceof Error
-            ? error.message
-            : "আবার চেষ্টা করুন।")
+        "❌ Vendor Status Update করা যায়নি.\n\n" +
+          (
+            result.error ||
+            "Unknown error"
+          )
       );
-    } finally {
-      setUpdatingVendor(null);
+
+      return;
     }
+
+    const updatedVendor =
+      result.vendor as Vendor;
+
+    setVendors(
+      (
+        currentVendors
+      ) =>
+        currentVendors.map(
+          (item) =>
+            item.id ===
+            vendorId
+              ? updatedVendor
+              : item
+        )
+    );
+
+    alert(
+      newStatus ===
+      "active"
+        ? `✅ "${vendorName}" Vendor Successfully Activated!`
+        : `⛔ "${vendorName}" Vendor Successfully Deactivated!`
+    );
+
+  } catch (error) {
+    console.error(
+      "VENDOR STATUS UPDATE EXCEPTION:",
+      error
+    );
+
+    alert(
+      "❌ Vendor Status Update করার সময় একটি সমস্যা হয়েছে.\n\n" +
+        (
+          error instanceof Error
+            ? error.message
+            : "আবার চেষ্টা করুন।"
+        )
+    );
+
+  } finally {
+    setUpdatingVendor(
+      null
+    );
   }
+}
 
   // ==========================================
   // UPLOAD PRODUCT IMAGE FROM COMPUTER
