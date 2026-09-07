@@ -76,7 +76,7 @@ export async function POST(request: Request) {
         {
           success: false,
           message:
-            "Supabase server configuration পাওয়া যায়নি। .env.local চেক করুন।",
+            "Supabase server configuration পাওয়া যায়নি। Vercel Environment Variables চেক করুন।",
         },
         { status: 500 }
       );
@@ -100,7 +100,7 @@ export async function POST(request: Request) {
     );
 
     // =========================================
-    // SSL ENVIRONMENT VARIABLES
+    // SSLCommerz LIVE ENVIRONMENT VARIABLES
     // =========================================
 
     const storeId =
@@ -109,12 +109,21 @@ export async function POST(request: Request) {
     const storePassword =
       process.env.SSLCOMMERZ_STORE_PASSWORD?.trim();
 
-    const isLive =
-      process.env.SSLCOMMERZ_IS_LIVE?.trim() === "true";
+    // =========================================
+    // LIVE SITE URL
+    //
+    // Vercel Environment Variable:
+    //
+    // NEXT_PUBLIC_SITE_URL
+    //
+    // Example:
+    // https://nijum-shop.vercel.app
+    //
+    // অথবা আপনার নিজের Custom Domain
+    // =========================================
 
     const siteUrl =
-      process.env.NEXT_PUBLIC_SITE_URL?.trim() ||
-      "http://localhost:3000";
+      process.env.NEXT_PUBLIC_SITE_URL?.trim();
 
     // =========================================
     // DEBUG
@@ -125,7 +134,7 @@ export async function POST(request: Request) {
     );
 
     console.log(
-      "SSLCommerz Payment Initiation"
+      "SSLCommerz LIVE Payment Initiation"
     );
 
     console.log(
@@ -149,11 +158,6 @@ export async function POST(request: Request) {
     );
 
     console.log(
-      "SSL LIVE:",
-      isLive
-    );
-
-    console.log(
       "SITE URL:",
       siteUrl
     );
@@ -171,11 +175,33 @@ export async function POST(request: Request) {
         {
           success: false,
           message:
-            "SSLCommerz Store ID অথবা Store Password পাওয়া যায়নি। .env.local চেক করুন।",
+            "SSLCommerz Live Store ID অথবা Live Store Password পাওয়া যায়নি। Vercel Environment Variables চেক করুন।",
         },
         { status: 500 }
       );
     }
+
+    // =========================================
+    // CHECK SITE URL
+    // =========================================
+
+    if (!siteUrl) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "NEXT_PUBLIC_SITE_URL পাওয়া যায়নি। Vercel Environment Variables-এ আপনার Live Website URL দিন।",
+        },
+        { status: 500 }
+      );
+    }
+
+    // =========================================
+    // REMOVE TRAILING SLASH
+    // =========================================
+
+    const cleanSiteUrl =
+      siteUrl.replace(/\/+$/, "");
 
     // =========================================
     // FIND ORDER
@@ -192,7 +218,10 @@ export async function POST(request: Request) {
       .eq("id", orderId)
       .single();
 
-    if (orderFindError || !existingOrder) {
+    if (
+      orderFindError ||
+      !existingOrder
+    ) {
       console.error(
         "ORDER FIND ERROR:",
         orderFindError
@@ -239,7 +268,9 @@ export async function POST(request: Request) {
     // =========================================
 
     if (
-      Math.abs(orderAmount - amount) > 0.01
+      Math.abs(
+        orderAmount - amount
+      ) > 0.01
     ) {
       console.error(
         "ORDER AMOUNT MISMATCH:",
@@ -264,7 +295,8 @@ export async function POST(request: Request) {
     // =========================================
 
     if (
-      existingOrder.payment_status === "paid"
+      existingOrder.payment_status ===
+      "paid"
     ) {
       return NextResponse.json(
         {
@@ -280,14 +312,21 @@ export async function POST(request: Request) {
     // TRANSACTION ID
     // =========================================
 
-    const shortOrderId = String(orderId)
-      .replace(/[^a-zA-Z0-9]/g, "")
-      .slice(-12);
+    const shortOrderId =
+      String(orderId)
+        .replace(
+          /[^a-zA-Z0-9]/g,
+          ""
+        )
+        .slice(-12);
 
     const transactionId =
       `NIJUM${Date.now()
         .toString()
-        .slice(-10)}${shortOrderId}`.slice(0, 30);
+        .slice(-10)}${shortOrderId}`.slice(
+        0,
+        30
+      );
 
     console.log(
       "TRANSACTION ID:",
@@ -300,19 +339,27 @@ export async function POST(request: Request) {
 
     const {
       data: updatedOrder,
-      error: transactionSaveError,
+      error:
+        transactionSaveError,
     } = await supabaseAdmin
       .from("orders")
       .update({
-        transaction_id: transactionId,
-        payment_method: "sslcommerz",
-        payment_status: "pending",
+        transaction_id:
+          transactionId,
+
+        payment_method:
+          "sslcommerz",
+
+        payment_status:
+          "pending",
       })
       .eq("id", orderId)
       .select()
       .single();
 
-    if (transactionSaveError) {
+    if (
+      transactionSaveError
+    ) {
       console.error(
         "TRANSACTION ID SAVE ERROR:",
         transactionSaveError
@@ -321,8 +368,10 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           success: false,
+
           message:
             "Order-এর transaction ID save করা যায়নি।",
+
           details:
             transactionSaveError.message,
         },
@@ -336,15 +385,19 @@ export async function POST(request: Request) {
     );
 
     // =========================================
-    // SSLCommerz API URL
+    // SSLCommerz LIVE API URL
+    // =========================================
+    //
+    // এখানে Sandbox নেই।
+    //
+    // এটি সরাসরি SSLCommerz LIVE Gateway।
     // =========================================
 
-    const sslUrl = isLive
-      ? "https://securepay.sslcommerz.com/gwprocess/v4/api.php"
-      : "https://sandbox-gw.sslcommerz.com/gwprocess/v4/api.php";
+    const sslUrl =
+      "https://securepay.sslcommerz.com/gwprocess/v4/api.php";
 
     console.log(
-      "SSL API URL:",
+      "SSL LIVE API URL:",
       sslUrl
     );
 
@@ -389,27 +442,27 @@ export async function POST(request: Request) {
     );
 
     // =========================================
-    // CALLBACK
+    // CALLBACK URL
     // =========================================
 
     paymentData.append(
       "success_url",
-      `${siteUrl}/api/payment/success`
+      `${cleanSiteUrl}/api/payment/success`
     );
 
     paymentData.append(
       "fail_url",
-      `${siteUrl}/api/payment/fail`
+      `${cleanSiteUrl}/api/payment/fail`
     );
 
     paymentData.append(
       "cancel_url",
-      `${siteUrl}/api/payment/cancel`
+      `${cleanSiteUrl}/api/payment/cancel`
     );
 
     paymentData.append(
       "ipn_url",
-      `${siteUrl}/api/payment/ipn`
+      `${cleanSiteUrl}/api/payment/ipn`
     );
 
     // =========================================
@@ -418,7 +471,9 @@ export async function POST(request: Request) {
 
     paymentData.append(
       "cus_name",
-      String(customerName).trim()
+      String(
+        customerName
+      ).trim()
     );
 
     paymentData.append(
@@ -428,7 +483,9 @@ export async function POST(request: Request) {
 
     paymentData.append(
       "cus_add1",
-      String(customerAddress).trim()
+      String(
+        customerAddress
+      ).trim()
     );
 
     paymentData.append(
@@ -458,7 +515,9 @@ export async function POST(request: Request) {
 
     paymentData.append(
       "cus_phone",
-      String(customerPhone).trim()
+      String(
+        customerPhone
+      ).trim()
     );
 
     paymentData.append(
@@ -492,12 +551,16 @@ export async function POST(request: Request) {
 
     paymentData.append(
       "ship_name",
-      String(customerName).trim()
+      String(
+        customerName
+      ).trim()
     );
 
     paymentData.append(
       "ship_add1",
-      String(customerAddress).trim()
+      String(
+        customerAddress
+      ).trim()
     );
 
     paymentData.append(
@@ -521,11 +584,11 @@ export async function POST(request: Request) {
     );
 
     // =========================================
-    // SEND TO SSLCOMMERZ
+    // SEND TO SSLCommerz LIVE
     // =========================================
 
     console.log(
-      "Sending payment request to SSLCommerz..."
+      "Sending LIVE payment request to SSLCommerz..."
     );
 
     const sslResponse =
@@ -554,12 +617,12 @@ export async function POST(request: Request) {
       await sslResponse.text();
 
     console.log(
-      "SSL HTTP STATUS:",
+      "SSL LIVE HTTP STATUS:",
       sslResponse.status
     );
 
     console.log(
-      "SSL RESPONSE:",
+      "SSL LIVE RESPONSE:",
       responseText
     );
 
@@ -571,14 +634,16 @@ export async function POST(request: Request) {
 
     try {
       sslData =
-        JSON.parse(responseText);
+        JSON.parse(
+          responseText
+        );
     } catch {
       return NextResponse.json(
         {
           success: false,
 
           message:
-            "SSLCommerz থেকে valid JSON response পাওয়া যায়নি।",
+            "SSLCommerz Live Gateway থেকে valid JSON response পাওয়া যায়নি।",
 
           httpStatus:
             sslResponse.status,
@@ -595,7 +660,8 @@ export async function POST(request: Request) {
     // =========================================
 
     if (
-      sslData?.status === "SUCCESS" &&
+      sslData?.status ===
+        "SUCCESS" &&
       sslData?.GatewayPageURL
     ) {
       console.log(
@@ -603,7 +669,7 @@ export async function POST(request: Request) {
       );
 
       console.log(
-        "SSL PAYMENT CREATED SUCCESSFULLY"
+        "SSLCommerz LIVE PAYMENT CREATED SUCCESSFULLY"
       );
 
       console.log(
@@ -619,25 +685,27 @@ export async function POST(request: Request) {
         "========================================="
       );
 
-      return NextResponse.json({
-        success: true,
+      return NextResponse.json(
+        {
+          success: true,
 
-        paymentUrl:
-          sslData.GatewayPageURL,
+          paymentUrl:
+            sslData.GatewayPageURL,
 
-        GatewayPageURL:
-          sslData.GatewayPageURL,
+          GatewayPageURL:
+            sslData.GatewayPageURL,
 
-        transactionId,
-
-        tran_id:
-          sslData.tran_id ||
           transactionId,
 
-        sessionkey:
-          sslData.sessionkey ||
-          null,
-      });
+          tran_id:
+            sslData.tran_id ||
+            transactionId,
+
+          sessionkey:
+            sslData.sessionkey ||
+            null,
+        }
+      );
     }
 
     // =========================================
@@ -649,7 +717,7 @@ export async function POST(request: Request) {
     );
 
     console.error(
-      "SSLCommerz PAYMENT ERROR"
+      "SSLCommerz LIVE PAYMENT ERROR"
     );
 
     console.error(
@@ -679,7 +747,7 @@ export async function POST(request: Request) {
           sslData?.failedreason ||
           sslData?.failedReason ||
           sslData?.message ||
-          "SSLCommerz payment শুরু করা যায়নি।",
+          "SSLCommerz Live payment শুরু করা যায়নি।",
 
         status:
           sslData?.status ||
@@ -697,7 +765,6 @@ export async function POST(request: Request) {
       },
       { status: 400 }
     );
-
   } catch (error) {
     console.error(
       "========================================="
