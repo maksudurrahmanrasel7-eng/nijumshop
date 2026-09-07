@@ -1,16 +1,63 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@supabase/supabase-js";
+
+// =========================================
+// SERVER-SIDE SUPABASE CLIENT
+// =========================================
+
+function getSupabaseAdmin() {
+  const supabaseUrl =
+    process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+
+  const serviceRoleKey =
+    process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+
+  if (!supabaseUrl || !serviceRoleKey) {
+    throw new Error(
+      "Supabase server environment variables missing."
+    );
+  }
+
+  return createClient(
+    supabaseUrl,
+    serviceRoleKey,
+    {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    }
+  );
+}
+
+// =========================================
+// POST CALLBACK
+// =========================================
 
 export async function POST(request: Request) {
   return handleSuccess(request);
 }
 
+// =========================================
+// GET CALLBACK FALLBACK
+// =========================================
+
 export async function GET(request: Request) {
   return handleSuccess(request);
 }
 
+// =========================================
+// SUCCESS HANDLER
+// =========================================
+
 async function handleSuccess(request: Request) {
   try {
+    // =========================================
+    // SERVER-SIDE SUPABASE
+    // =========================================
+
+    const supabase = getSupabaseAdmin();
+
     // =========================================
     // GET SSLCommerz CALLBACK DATA
     // =========================================
@@ -24,7 +71,8 @@ async function handleSuccess(request: Request) {
     // -----------------------------------------
 
     if (request.method === "POST") {
-      const formData = await request.formData();
+      const formData =
+        await request.formData();
 
       tranId = String(
         formData.get("tran_id") || ""
@@ -44,22 +92,20 @@ async function handleSuccess(request: Request) {
     // -----------------------------------------
 
     else {
-      const url = new URL(request.url);
+      const url =
+        new URL(request.url);
 
-      tranId =
-        String(
-          url.searchParams.get("tran_id") || ""
-        ).trim();
+      tranId = String(
+        url.searchParams.get("tran_id") || ""
+      ).trim();
 
-      valId =
-        String(
-          url.searchParams.get("val_id") || ""
-        ).trim();
+      valId = String(
+        url.searchParams.get("val_id") || ""
+      ).trim();
 
-      callbackStatus =
-        String(
-          url.searchParams.get("status") || ""
-        ).trim();
+      callbackStatus = String(
+        url.searchParams.get("status") || ""
+      ).trim();
     }
 
     console.log(
@@ -102,7 +148,8 @@ async function handleSuccess(request: Request) {
         new URL(
           "/?payment=failed",
           request.url
-        )
+        ),
+        303
       );
     }
 
@@ -129,7 +176,8 @@ async function handleSuccess(request: Request) {
         new URL(
           "/?payment=failed",
           request.url
-        )
+        ),
+        303
       );
     }
 
@@ -208,7 +256,8 @@ async function handleSuccess(request: Request) {
         new URL(
           "/?payment=failed",
           request.url
-        )
+        ),
+        303
       );
     }
 
@@ -234,7 +283,8 @@ async function handleSuccess(request: Request) {
         new URL(
           "/?payment=failed",
           request.url
-        )
+        ),
+        303
       );
     }
 
@@ -256,7 +306,8 @@ async function handleSuccess(request: Request) {
         new URL(
           "/?payment=failed",
           request.url
-        )
+        ),
+        303
       );
     }
 
@@ -268,7 +319,9 @@ async function handleSuccess(request: Request) {
       console.error(
         "Transaction ID mismatch:",
         {
-          callbackTranId: tranId,
+          callbackTranId:
+            tranId,
+
           validatedTranId,
         }
       );
@@ -277,7 +330,8 @@ async function handleSuccess(request: Request) {
         new URL(
           "/?payment=failed",
           request.url
-        )
+        ),
+        303
       );
     }
 
@@ -300,16 +354,13 @@ async function handleSuccess(request: Request) {
         new URL(
           "/?payment=failed",
           request.url
-        )
+        ),
+        303
       );
     }
 
     // =========================================
-    // FIND ORDER
-    //
-    // We search using transaction_id.
-    // The initiate API will save the same
-    // transaction ID into orders table.
+    // FIND ORDER USING TRANSACTION ID
     // =========================================
 
     const {
@@ -336,7 +387,8 @@ async function handleSuccess(request: Request) {
         new URL(
           "/?payment=failed",
           request.url
-        )
+        ),
+        303
       );
     }
 
@@ -350,7 +402,8 @@ async function handleSuccess(request: Request) {
         new URL(
           "/?payment=failed",
           request.url
-        )
+        ),
+        303
       );
     }
 
@@ -376,11 +429,13 @@ async function handleSuccess(request: Request) {
         new URL(
           "/?payment=failed",
           request.url
-        )
+        ),
+        303
       );
     }
 
     // Compare with 2 decimal precision
+
     const orderAmountFixed =
       orderAmount.toFixed(2);
 
@@ -388,13 +443,15 @@ async function handleSuccess(request: Request) {
       sslAmount.toFixed(2);
 
     if (
-      orderAmountFixed !== sslAmountFixed
+      orderAmountFixed !==
+      sslAmountFixed
     ) {
       console.error(
         "PAYMENT AMOUNT MISMATCH:",
         {
           orderAmount:
             orderAmountFixed,
+
           sslAmount:
             sslAmountFixed,
         }
@@ -404,7 +461,8 @@ async function handleSuccess(request: Request) {
         new URL(
           "/?payment=failed",
           request.url
-        )
+        ),
+        303
       );
     }
 
@@ -423,7 +481,8 @@ async function handleSuccess(request: Request) {
         new URL(
           `/?payment=success&order_id=${order.id}`,
           request.url
-        )
+        ),
+        303
       );
     }
 
@@ -466,7 +525,8 @@ async function handleSuccess(request: Request) {
         new URL(
           "/?payment=failed",
           request.url
-        )
+        ),
+        303
       );
     }
 
@@ -513,13 +573,17 @@ async function handleSuccess(request: Request) {
 
     // =========================================
     // REDIRECT CUSTOMER
+    //
+    // 303 is important here:
+    // SSLCommerz POST -> browser GET
     // =========================================
 
     return NextResponse.redirect(
       new URL(
         `/?payment=success&order_id=${order.id}`,
         request.url
-      )
+      ),
+      303
     );
 
   } catch (error) {
@@ -532,7 +596,8 @@ async function handleSuccess(request: Request) {
       new URL(
         "/?payment=failed",
         request.url
-      )
+      ),
+      303
     );
   }
 }
