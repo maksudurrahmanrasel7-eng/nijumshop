@@ -9,7 +9,9 @@ function getSupabaseAdmin() {
     process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
 
   if (!supabaseUrl || !serviceRoleKey) {
-    throw new Error("Supabase server environment variables missing.");
+    throw new Error(
+      "Supabase server environment variables missing."
+    );
   }
 
   return createClient(
@@ -28,14 +30,46 @@ function getSiteUrl(request: Request) {
   return (
     process.env.NEXT_PUBLIC_SITE_URL?.trim() ||
     new URL(request.url).origin
+  ).replace(/\/$/, "");
+}
+
+function browserRedirect(url: string) {
+  const safeUrl = JSON.stringify(url);
+
+  return new Response(
+    `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta
+    http-equiv="refresh"
+    content="0;url=${url}"
+  >
+  <title>Redirecting...</title>
+</head>
+<body>
+  <p>Redirecting...</p>
+
+  <script>
+    window.location.replace(${safeUrl});
+  </script>
+</body>
+</html>`,
+    {
+      status: 200,
+      headers: {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "no-store",
+      },
+    }
   );
 }
 
 export async function POST(request: Request) {
   const siteUrl = getSiteUrl(request);
+  const redirectUrl = `${siteUrl}/?payment=failed`;
 
   try {
-    // SSLCommerz callback sends form data
     const formData = await request.formData();
 
     const tranId = String(
@@ -46,7 +80,7 @@ export async function POST(request: Request) {
       formData.get("status") || ""
     ).trim();
 
-    console.log("SSLCommerz payment failed:", {
+    console.log("SSLCommerz FAIL callback:", {
       tranId,
       status,
     });
@@ -71,30 +105,22 @@ export async function POST(request: Request) {
       }
     }
 
-    // 303 converts SSLCommerz POST callback to browser GET
-    return NextResponse.redirect(
-      new URL("/?payment=failed", siteUrl),
-      303
-    );
+    return browserRedirect(redirectUrl);
   } catch (error) {
     console.error(
-      "SSLCommerz Fail Error:",
+      "SSLCommerz Fail Callback Error:",
       error
     );
 
-    return NextResponse.redirect(
-      new URL("/?payment=failed", siteUrl),
-      303
-    );
+    return browserRedirect(redirectUrl);
   }
 }
 
-// Browser দিয়ে callback URL সরাসরি খুললেও 405 হবে না
 export async function GET(request: Request) {
   const siteUrl = getSiteUrl(request);
 
   return NextResponse.redirect(
-    new URL("/?payment=failed", siteUrl),
-    303
+    `${siteUrl}/?payment=failed`,
+    302
   );
 }
