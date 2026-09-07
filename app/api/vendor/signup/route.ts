@@ -69,7 +69,10 @@ export async function POST(request: Request) {
           shop_name: shopName.trim(),
           shop_address: shopAddress.trim(),
           role: "vendor",
-          membership_status: "active",
+
+          // নতুন Vendor প্রথমে inactive থাকবে।
+          // Admin activate করলে active হবে।
+          membership_status: "inactive",
         },
         {
           onConflict: "id",
